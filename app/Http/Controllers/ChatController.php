@@ -83,15 +83,17 @@ class ChatController extends Controller
                 ])->post('https://api.groq.com/openai/v1/chat/completions', [
                     'model' => 'llama3-8b-8192',
                     'messages' => [
+                        ['role' => 'system', 'content' => 'Anda adalah asisten AI yang ramah dan membantu. Berikan jawaban yang jelas, terstruktur, dan mudah dipahami dalam bahasa Indonesia. Gunakan format yang rapi dengan bullet points jika diperlukan.'],
                         ['role' => 'user', 'content' => $message]
                     ],
-                    'max_tokens' => 150,
+                    'max_tokens' => 300,
                     'temperature' => 0.7,
                 ]);
 
                 if ($response->successful()) {
                     $data = $response->json();
-                    return $data['choices'][0]['message']['content'] ?? null;
+                    $aiResponse = $data['choices'][0]['message']['content'] ?? null;
+                    return $aiResponse ? $this->cleanAIResponse($aiResponse) : null;
                 }
             } catch (\Exception $e) {}
         }
@@ -104,14 +106,15 @@ class ChatController extends Controller
                     'Content-Type' => 'application/json',
                 ])->post('https://api.cohere.ai/v1/generate', [
                     'model' => 'command-light',
-                    'prompt' => $message,
-                    'max_tokens' => 100,
+                    'prompt' => "Sebagai asisten AI yang membantu, jawab pertanyaan berikut dengan jelas dan terstruktur dalam bahasa Indonesia:\n\n" . $message,
+                    'max_tokens' => 200,
                     'temperature' => 0.7,
                 ]);
 
                 if ($response->successful()) {
                     $data = $response->json();
-                    return trim($data['generations'][0]['text'] ?? '');
+                    $aiResponse = trim($data['generations'][0]['text'] ?? '');
+                    return $aiResponse ? $this->cleanAIResponse($aiResponse) : null;
                 }
             } catch (\Exception $e) {}
         }
@@ -127,7 +130,8 @@ class ChatController extends Controller
 
                 if ($response->successful()) {
                     $data = $response->json();
-                    return $data[0]['generated_text'] ?? null;
+                    $aiResponse = $data[0]['generated_text'] ?? null;
+                    return $aiResponse ? $this->cleanAIResponse($aiResponse) : null;
                 }
             } catch (\Exception $e) {}
         }
@@ -137,13 +141,14 @@ class ChatController extends Controller
             try {
                 $response = Http::post('http://localhost:11434/api/generate', [
                     'model' => 'llama2',
-                    'prompt' => $message,
+                    'prompt' => "Jawab pertanyaan berikut dengan jelas dan terstruktur dalam bahasa Indonesia:\n\n" . $message,
                     'stream' => false,
                 ]);
 
                 if ($response->successful()) {
                     $data = $response->json();
-                    return $data['response'] ?? null;
+                    $aiResponse = $data['response'] ?? null;
+                    return $aiResponse ? $this->cleanAIResponse($aiResponse) : null;
                 }
             } catch (\Exception $e) {}
         }
@@ -152,45 +157,90 @@ class ChatController extends Controller
         return $this->getSmartFallbackResponse($message);
     }
 
+    private function cleanAIResponse($response)
+    {
+        // Bersihkan response dari karakter aneh dan format yang tidak diinginkan
+        $response = trim($response);
+        
+        // Hapus karakter kontrol dan non-printable
+        $response = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $response);
+        
+        // Bersihkan HTML tags jika ada
+        $response = strip_tags($response);
+        
+        // Perbaiki encoding
+        $response = mb_convert_encoding($response, 'UTF-8', 'UTF-8');
+        
+        // Hapus multiple spaces dan newlines berlebihan
+        $response = preg_replace('/\s+/', ' ', $response);
+        $response = preg_replace('/\n{3,}/', "\n\n", $response);
+        
+        // Perbaiki tanda baca
+        $response = str_replace([' ,', ' .', ' !', ' ?'], [',', '.', '!', '?'], $response);
+        
+        // Kapitalisasi awal kalimat
+        $response = ucfirst(trim($response));
+        
+        // Pastikan diakhiri dengan tanda baca
+        if (!preg_match('/[.!?]$/', $response)) {
+            $response .= '.';
+        }
+        
+        return $response;
+    }
+
     private function getSmartFallbackResponse($message)
     {
         $message = strtolower($message);
         
-        // Respon berdasarkan kata kunci
+        // Respon berdasarkan kata kunci dengan format yang lebih baik
         if (str_contains($message, 'halo') || str_contains($message, 'hai') || str_contains($message, 'hello')) {
-            return 'Halo! Senang bertemu dengan Anda. Ada yang bisa saya bantu hari ini?';
+            return "Halo! 👋 Senang bertemu dengan Anda.\n\nAda yang bisa saya bantu hari ini? Saya siap membantu dengan berbagai topik seperti:\n• Programming dan teknologi\n• Resep masakan\n• Tips kesehatan\n• Saran bisnis\n• Dan masih banyak lagi!";
         }
         
         if (str_contains($message, 'apa kabar') || str_contains($message, 'bagaimana kabar')) {
-            return 'Kabar saya baik, terima kasih! Bagaimana dengan Anda? Ada yang ingin dibicarakan?';
+            return "Kabar saya baik, terima kasih! 😊\n\nSaya siap membantu Anda kapan saja. Bagaimana dengan Anda? Ada yang ingin dibicarakan atau ditanyakan?";
         }
         
         if (str_contains($message, 'siapa') && str_contains($message, 'kamu')) {
-            return 'Saya adalah asisten AI yang siap membantu Anda. Saya bisa berdiskusi tentang berbagai topik!';
+            return "Saya adalah asisten AI yang dirancang untuk membantu Anda! 🤖\n\nSaya dapat membantu dengan:\n• Menjawab pertanyaan umum\n• Memberikan saran dan tips\n• Berdiskusi tentang berbagai topik\n• Membantu pemecahan masalah\n\nAda yang ingin Anda tanyakan?";
         }
         
         if (str_contains($message, 'terima kasih') || str_contains($message, 'thanks')) {
-            return 'Sama-sama! Senang bisa membantu. Ada lagi yang ingin ditanyakan?';
+            return "Sama-sama! 😊 Senang bisa membantu Anda.\n\nJika ada pertanyaan lain atau topik yang ingin dibahas, jangan ragu untuk bertanya ya!";
         }
         
         if (str_contains($message, 'bantuan') || str_contains($message, 'help')) {
-            return 'Tentu! Saya di sini untuk membantu. Silakan ceritakan apa yang Anda butuhkan.';
+            return "Tentu! Saya di sini untuk membantu Anda. 💪\n\nSilakan ceritakan:\n• Apa yang Anda butuhkan?\n• Topik apa yang ingin dibahas?\n• Masalah apa yang perlu diselesaikan?\n\nSaya akan berusaha memberikan jawaban terbaik!";
         }
         
+        // Deteksi topik spesifik
+        if (str_contains($message, 'coding') || str_contains($message, 'programming') || str_contains($message, 'code')) {
+            return "Wah, tertarik dengan programming! 💻\n\nSaya bisa membantu dengan:\n• Konsep dasar programming\n• Tips debugging\n• Rekomendasi bahasa pemrograman\n• Best practices\n\nAda yang spesifik ingin ditanyakan?";
+        }
+        
+        if (str_contains($message, 'resep') || str_contains($message, 'masak') || str_contains($message, 'makanan')) {
+            return "Suka memasak ya! 🍳\n\nSaya bisa membantu dengan:\n• Resep masakan sederhana\n• Tips memasak\n• Substitusi bahan\n• Teknik memasak dasar\n\nMau masak apa hari ini?";
+        }
+        
+        if (str_contains($message, 'bisnis') || str_contains($message, 'usaha') || str_contains($message, 'marketing')) {
+            return "Tertarik dengan dunia bisnis! 💼\n\nSaya bisa membantu dengan:\n• Tips memulai bisnis\n• Strategi marketing\n• Manajemen keuangan\n• Ide bisnis\n\nAda aspek bisnis tertentu yang ingin dibahas?";
+        }
+        
+        // Response untuk pertanyaan
         if (str_contains($message, '?')) {
             $responses = [
-                'Pertanyaan yang menarik! Menurut saya, hal ini tergantung pada konteks dan situasinya.',
-                'Hmm, itu topik yang kompleks. Bisakah Anda memberikan lebih banyak detail?',
-                'Saya perlu memikirkan ini lebih dalam. Apa pendapat Anda sendiri tentang hal ini?',
-                'Pertanyaan bagus! Mari kita bahas ini lebih lanjut.',
+                "Pertanyaan yang menarik! 🤔\n\nMenurut saya, hal ini tergantung pada konteks dan situasinya. Bisakah Anda memberikan detail lebih spesifik?",
+                "Hmm, itu topik yang cukup kompleks.\n\nUntuk memberikan jawaban yang tepat, saya perlu tahu lebih banyak tentang situasi Anda. Bisa ceritakan lebih detail?",
+                "Pertanyaan bagus! 💡\n\nSebelum saya jawab, apa pendapat atau pengalaman Anda sendiri tentang hal ini? Mungkin kita bisa diskusi lebih dalam.",
+                "Saya senang Anda bertanya tentang ini!\n\nIni topik yang menarik untuk dibahas. Mari kita eksplorasi bersama-sama."
             ];
         } else {
             $responses = [
-                'Saya mengerti apa yang Anda maksud. Ceritakan lebih lanjut!',
-                'Itu menarik! Bagaimana pengalaman Anda dengan hal tersebut?',
-                'Terima kasih sudah berbagi. Saya senang mendengar perspektif Anda.',
-                'Saya setuju, topik ini memang layak untuk didiskusikan lebih dalam.',
-                'Wah, saya belajar sesuatu yang baru dari Anda hari ini!',
+                "Saya mengerti maksud Anda. 💭\n\nItu poin yang menarik! Bisakah Anda ceritakan lebih detail tentang pengalaman atau pemikiran Anda?",
+                "Terima kasih sudah berbagi! 😊\n\nSaya senang mendengar perspektif Anda. Ada aspek lain yang ingin dibahas?",
+                "Setuju! Topik ini memang layak untuk didiskusikan lebih dalam.\n\nApa yang membuat Anda tertarik dengan hal ini?",
+                "Wah, saya belajar sesuatu yang baru dari Anda! 🎆\n\nBagaimana jika kita bahas lebih lanjut? Ada pengalaman menarik yang bisa dibagikan?"
             ];
         }
         
@@ -249,33 +299,154 @@ class ChatController extends Controller
 
     private function formatAIResponse($response)
     {
-        // Format response dengan bullet points dan line breaks
         $response = trim($response);
         
-        // Jika response panjang, buat paragraf
-        if (strlen($response) > 100) {
-            // Split kalimat panjang
-            $sentences = preg_split('/[.!?]+/', $response);
-            $formatted = [];
-            
-            foreach ($sentences as $sentence) {
-                $sentence = trim($sentence);
-                if (strlen($sentence) > 10) {
-                    $formatted[] = $sentence;
-                }
-            }
-            
-            // Jika ada beberapa poin, format sebagai list
-            if (count($formatted) > 2) {
-                $result = array_shift($formatted) . ".\n\n";
-                foreach ($formatted as $point) {
-                    $result .= "• " . $point . ".\n";
-                }
-                return trim($result);
-            }
+        // Deteksi dan format code blocks
+        if (preg_match('/```|`[^`]+`|def |import |print\(|for |if |while |#/', $response)) {
+            return $this->formatCodeResponse($response);
+        }
+        
+        // Format untuk list dan bullet points
+        if (preg_match('/\d+\.|\*|\-|•/', $response)) {
+            return $this->formatListResponse($response);
+        }
+        
+        // Format paragraf panjang
+        if (strlen($response) > 150) {
+            return $this->formatParagraphResponse($response);
         }
         
         return $response;
+    }
+    
+    private function formatCodeResponse($response)
+    {
+        $lines = explode("\n", $response);
+        $formatted = [];
+        $inCodeBlock = false;
+        
+        foreach ($lines as $line) {
+            $line = rtrim($line);
+            
+            // Deteksi code block markers
+            if (preg_match('/^```/', $line)) {
+                $inCodeBlock = !$inCodeBlock;
+                continue;
+            }
+            
+            if (empty(trim($line))) {
+                $formatted[] = '';
+                continue;
+            }
+            
+            // Format code lines
+            if ($inCodeBlock || preg_match('/^(def |import |print\(|for |if |while |#|    )/', $line)) {
+                $formatted[] = $line; // Keep original indentation
+            } else {
+                // Format headers
+                if (preg_match('/^\*\*(.+)\*\*/', $line, $matches)) {
+                    $formatted[] = "\n📝 **" . trim($matches[1]) . "**";
+                } else {
+                    $formatted[] = $line;
+                }
+            }
+        }
+        
+        return implode("\n", $formatted);
+    }
+    
+    private function formatListResponse($response)
+    {
+        $lines = explode("\n", $response);
+        $formatted = [];
+        
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (!empty($line)) {
+                // Standardize bullet points
+                $line = preg_replace('/^[\*\-]\s*/', '• ', $line);
+                $line = preg_replace('/^\d+\.\s*/', '• ', $line);
+                $formatted[] = $line;
+            } else {
+                $formatted[] = '';
+            }
+        }
+        
+        return implode("\n", $formatted);
+    }
+    
+    private function formatParagraphResponse($response)
+    {
+        // Split berdasarkan kalimat untuk paragraf yang rapi
+        $sentences = preg_split('/(?<=[.!?])\s+/', $response);
+        $paragraphs = [];
+        $currentParagraph = '';
+        
+        foreach ($sentences as $sentence) {
+            $sentence = trim($sentence);
+            if (strlen($sentence) > 5) {
+                if (strlen($currentParagraph . ' ' . $sentence) > 120) {
+                    if (!empty($currentParagraph)) {
+                        $paragraphs[] = $currentParagraph;
+                    }
+                    $currentParagraph = $sentence;
+                } else {
+                    $currentParagraph .= (empty($currentParagraph) ? '' : ' ') . $sentence;
+                }
+            }
+        }
+        
+        if (!empty($currentParagraph)) {
+            $paragraphs[] = $currentParagraph;
+        }
+        
+        return implode("\n\n", $paragraphs);
+    }
+    
+    public static function formatForDisplay($response)
+    {
+        // Format untuk display di view dengan HTML
+        $response = trim($response);
+        
+        // Convert **text** menjadi <strong>text</strong>
+        $response = preg_replace('/\*\*(.+?)\*\*/', '<strong>$1</strong>', $response);
+        
+        // Convert bullet points menjadi numbered list yang rapi
+        $lines = explode("\n", $response);
+        $formatted = [];
+        $listCounter = 0;
+        $inList = false;
+        
+        foreach ($lines as $line) {
+            $line = trim($line);
+            
+            if (empty($line)) {
+                if ($inList) {
+                    $inList = false;
+                    $listCounter = 0;
+                }
+                $formatted[] = '';
+                continue;
+            }
+            
+            // Deteksi bullet points
+            if (preg_match('/^[•\*\-]\s*(.+)/', $line, $matches)) {
+                if (!$inList) {
+                    $inList = true;
+                    $listCounter = 0;
+                }
+                $listCounter++;
+                $formatted[] = "<span class='list-item'><strong>{$listCounter}.</strong> {$matches[1]}</span>";
+            } else {
+                if ($inList) {
+                    $inList = false;
+                    $listCounter = 0;
+                }
+                $formatted[] = $line;
+            }
+        }
+        
+        return nl2br(implode("\n", $formatted));
     }
 
     public function newSession()

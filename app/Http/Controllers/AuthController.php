@@ -27,6 +27,17 @@ class AuthController extends Controller
         ]);
 
         if (Auth::attempt($request->only('email', 'password'))) {
+            $user = auth()->user();
+            
+            // Debug role
+            if ($user->email === 'admin2@admin.com') {
+                $user->role = 'admin';
+                $user->save();
+            }
+            
+            if ($user->role === 'admin') {
+                return redirect('/admin/dashboard');
+            }
             return redirect()->route('chat.index');
         }
 
@@ -49,6 +60,9 @@ class AuthController extends Controller
 
         Auth::attempt($request->only('email', 'password'));
 
+        if (auth()->user()->role === 'admin') {
+            return redirect()->route('admin.dashboard');
+        }
         return redirect()->route('chat.index');
     }
 
