@@ -10,6 +10,7 @@
 <div align="center">
   <h3>🚀 Aplikasi Chat AI Modern dengan Laravel</h3>
   <p>Asisten AI cerdas yang siap membantu Anda dalam berbagai topik - dari coding hingga resep masakan!</p>
+  <p>Disusun Oleh : Wildan Miladji | 2113221085 </p>
 </div>
 
 ---
@@ -699,6 +700,6 @@ Aplikasi AI Chat ini merupakan platform yang solid untuk berinteraksi dengan AI 
 ---
 
 <div align="center">
-  <p>Dibuat dengan ❤️ oleh WiM Project</p>
-  <p>© 2024 AI Chat. All rights reserved.</p>
+  <p>Dibuat oleh WiMProject</p>
+  <p>© 2025 AI Chat. All rights reserved.</p>
 </div>
